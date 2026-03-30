@@ -17,7 +17,8 @@ const Marketplace = () => {
 
   const fetchVehicles = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/public-vehicles/');
+      const baseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/').replace(/\/$/, "");
+      const response = await axios.get(`${baseUrl}/public-vehicles/`);
       setVehicles(response.data);
       setLoading(false);
     } catch (error) {

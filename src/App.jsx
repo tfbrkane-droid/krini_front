@@ -23,7 +23,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/marketplace" />} />
+        <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={
