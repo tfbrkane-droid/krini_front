@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// Force Vercel redeploy - fix vehicle edit image issue
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Select from 'react-select';
 import api from '../api';
