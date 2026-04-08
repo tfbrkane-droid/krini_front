@@ -339,9 +339,9 @@ const VehicleForm = () => {
                                     className="w-full bg-slate-50 border-b-2 border-slate-200 border-t-0 border-l-0 border-r-0 py-3.5 px-4 font-manrope text-lg font-semibold text-slate-900 focus:ring-0 focus:border-primary focus:bg-white transition-all appearance-none"
                                 >
                                     <option value="Diesel">Diesel</option>
-                                    <option value="Essence">Bénzine</option>
+                                    <option value="Essence">Essence</option>
                                     <option value="Hybride">Hybride</option>
-                                    <option value="Electrique">Electrique</option>
+                                    <option value="Electrique">Électrique</option>
                                 </select>
                             </div>
                             <div className="space-y-1">
