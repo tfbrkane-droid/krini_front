@@ -107,23 +107,36 @@ const VehicleForm = () => {
         setError(null);
 
         const data = new FormData();
+        const readOnlyFields = ['id', 'agency', 'marque_name', 'modele_name', 'agency_details', 'image'];
+        
         Object.keys(formData).forEach((key) => {
-            if (formData[key] !== null && formData[key] !== undefined) {
-                // Handle boolean for FormData
-                if (typeof formData[key] === 'boolean') {
-                    data.append(key, formData[key] ? 'true' : 'false');
-                } else {
-                    data.append(key, formData[key]);
+            if (!readOnlyFields.includes(key)) {
+                let value = formData[key];
+                
+                // Ensure foreign keys are not empty strings
+                if ((key === 'marque' || key === 'modele') && value === '') {
+                    value = null;
+                }
+
+                if (value !== null && value !== undefined) {
+                    // Handle boolean for FormData
+                    if (typeof value === 'boolean') {
+                        data.append(key, value ? 'true' : 'false');
+                    } else {
+                        data.append(key, value);
+                    }
                 }
             }
         });
-        if (image) {
+        
+        // Only append image if it's a new File object (not the existing URL string)
+        if (image && image instanceof File) {
             data.append('image', image);
         }
 
         try {
             if (isEditMode) {
-                await api.put(`vehicles/${id}/`, data, {
+                await api.patch(`vehicles/${id}/`, data, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
@@ -134,7 +147,22 @@ const VehicleForm = () => {
             navigate('/vehicles');
         } catch (error) {
             console.error("Erreur lors de l'enregistrement du véhicule", error);
-            const message = error.response?.data?.detail || error.response?.data?.matricule?.[0] || "Une erreur est survenue lors de l'enregistrement.";
+            
+            let message = "Une erreur est survenue lors de l'enregistrement.";
+            if (error.response?.data) {
+                const data = error.response.data;
+                if (typeof data === 'string') {
+                    message = data;
+                } else if (data.detail) {
+                    message = data.detail;
+                } else {
+                    // Extract all field errors
+                    const errors = Object.entries(data)
+                        .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(', ') : errs}`)
+                        .join(' | ');
+                    if (errors) message = errors;
+                }
+            }
             setError(message);
             setLoading(false);
         }
