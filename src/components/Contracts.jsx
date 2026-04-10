@@ -9,6 +9,7 @@ const Contracts = () => {
     const [loading, setLoading] = useState(true);
     const [closeContract, setCloseContract] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
+    const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL', 'EN_COURS', 'RESERVE', 'TERMINE'
 
     const fetchContracts = async () => {
         try {
@@ -96,9 +97,18 @@ const Contracts = () => {
             )}
 
             {/* Editorial Header */}
-            <div className="flex flex-col mb-8">
-                <span className="font-label text-[10px] uppercase tracking-[0.15em] text-slate-500 font-bold mb-1">Opérations de Flotte</span>
-                <h1 className="font-headline text-3xl font-extrabold text-primary tracking-tight">Contrats de Location</h1>
+            <div className="flex items-start justify-between mb-8">
+                <div className="flex flex-col">
+                    <span className="font-label text-[10px] uppercase tracking-[0.15em] text-slate-500 font-bold mb-1">Opérations de Flotte</span>
+                    <h1 className="font-headline text-3xl font-extrabold text-primary tracking-tight">Contrats de Location</h1>
+                </div>
+                <button 
+                    onClick={() => navigate('/contracts/new')}
+                    className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-headline font-bold text-sm shadow-md shadow-primary/20 hover:shadow-lg hover:bg-primary/95 transition-all mt-1"
+                >
+                    <span className="material-symbols-outlined text-lg">add</span>
+                    Nouveau Contrat
+                </button>
             </div>
 
             {/* KPI Architecture */}
@@ -140,9 +150,19 @@ const Contracts = () => {
             {/* Filter & Actions Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                    <button className="bg-slate-200/50 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors">Tous</button>
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:bg-slate-200/50 transition-colors">En cours</button>
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:bg-slate-200/50 transition-colors">Terminés</button>
+                    {[
+                        { id: 'ALL', label: 'Tous' },
+                        { id: 'EN_COURS', label: 'En cours' },
+                        { id: 'TERMINE', label: 'Terminés' }
+                    ].map(filter => (
+                        <button 
+                            key={filter.id}
+                            onClick={() => setActiveFilter(filter.id)}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeFilter === filter.id ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                        >
+                            {filter.label}
+                        </button>
+                    ))}
                 </div>
                 <div className="flex items-center gap-2">
                     <button className="flex items-center gap-2 bg-white border border-slate-100 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
@@ -172,7 +192,9 @@ const Contracts = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {contracts.map(contract => (
+                            {contracts
+                                .filter(c => activeFilter === 'ALL' ? c.statut !== 'RESERVE' : c.statut === activeFilter)
+                                .map(contract => (
                                 <tr key={contract.id} className="group hover:bg-slate-50 transition-colors cursor-pointer">
                                     <td className="px-6 py-5">
                                         <div className="flex items-center gap-3">

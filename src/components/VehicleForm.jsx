@@ -23,6 +23,7 @@ const VehicleForm = () => {
         date_assurance: '',
         date_visite_technique: '',
         prochain_vidange_km: 0,
+        tarif_km_extra: '',
     });
 
     const [brands, setBrands] = useState([]);
@@ -408,6 +409,28 @@ const VehicleForm = () => {
                                     </span>
                                 </label>
                             </div>
+                        </div>
+
+                        {/* Tarif km extra override */}
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                            <label className="font-inter uppercase tracking-wider text-[10px] font-bold text-slate-500 flex items-center gap-1 mb-2">
+                                <span className="material-symbols-outlined text-sm text-primary">speed</span>
+                                Tarif km suppl. spécifique à ce véhicule (DH/km)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">DH</span>
+                                <input
+                                    name="tarif_km_extra"
+                                    value={formData.tarif_km_extra || ''}
+                                    onChange={handleChange}
+                                    className="w-full bg-white border border-blue-100 rounded-lg pl-10 pr-4 py-2.5 font-manrope font-bold text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    placeholder="Laissez vide = utiliser le tarif agence (défaut)"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1.5">Si non renseigné, le tarif par défaut des Paramètres sera appliqué.</p>
                         </div>
                     </section>
 

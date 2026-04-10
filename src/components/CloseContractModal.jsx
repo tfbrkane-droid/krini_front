@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import FuelGaugeSelector from './FuelGaugeSelector';
 import DamageSelector from './DamageSelector';
+import axios from 'axios';
 
 const STEPS = [
   { id: 1, label: 'Dates & Kilométrage', icon: 'speed' },
@@ -32,6 +33,7 @@ const CloseContractModal = ({ contract, onClose, onSuccess }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [agencySettings, setAgencySettings] = useState({ km_extra_active: false, km_par_jour: 250, km_tarif_extra_defaut: 1.5 });
 
   const [dateRetour, setDateRetour]     = useState(nowLocalISO());
   const [kmRetour, setKmRetour]         = useState('');
@@ -56,12 +58,23 @@ const CloseContractModal = ({ contract, onClose, onSuccess }) => {
     if (contract) {
       setKmRetour(contract.km_sortie?.toString() || '');
     }
+    // Fetch km settings
+    const token = localStorage.getItem('access_token');
+    axios.get('http://localhost:8000/api/agency/settings/', {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      setAgencySettings({
+        km_extra_active: res.data.km_extra_active,
+        km_par_jour: parseInt(res.data.km_par_jour) || 250,
+        km_tarif_extra_defaut: parseFloat(res.data.km_tarif_extra_defaut) || 1.5,
+      });
+    }).catch(() => {});
   }, [contract]);
 
   const kmDiff = contract ? (parseInt(kmRetour || 0) - contract.km_sortie) : 0;
   const isEarlyReturn = contract && new Date(dateRetour) < new Date(contract.date_retour_prevue);
 
-  // Recalculation logic (Simulated for Step 5 preview)
+  // Recalculation logic — must be declared BEFORE km overage which depends on recalculatedDays
   const getRecalculatedDays = () => {
     if (!contract) return 0;
     const start = new Date(contract.date_sortie);
@@ -73,7 +86,14 @@ const CloseContractModal = ({ contract, onClose, onSuccess }) => {
 
   const recalculatedDays = getRecalculatedDays();
   const recalculatedTotal = contract ? (recalculatedDays * parseFloat(contract.prix_par_jour)) : 0;
-  const newBalance = contract ? (recalculatedTotal - parseFloat(contract.montant_paye)) : 0;
+
+  // Km overage calculation (uses recalculatedDays, so must come after)
+  const kmInclus = agencySettings.km_extra_active ? (recalculatedDays * agencySettings.km_par_jour) : Infinity;
+  const kmSupplementaires = agencySettings.km_extra_active ? Math.max(0, kmDiff - kmInclus) : 0;
+  const tarifKmExtra = parseFloat(contract?.vehicle_tarif_km_extra || agencySettings.km_tarif_extra_defaut || 1.5);
+  const montantKmExtra = agencySettings.km_extra_active ? (kmSupplementaires * tarifKmExtra) : 0;
+
+  const newBalance = contract ? (recalculatedTotal + montantKmExtra - parseFloat(contract.montant_paye)) : 0;
 
   // Auto-set payment amount to balance on step 5 entry? (Optional quality of life)
   useEffect(() => {
@@ -189,6 +209,11 @@ const CloseContractModal = ({ contract, onClose, onSuccess }) => {
                   <p className={`text-2xl font-headline font-bold ${kmDiff >= 0 ? 'text-primary' : 'text-red-600'}`}>
                     {kmDiff >= 0 ? '+' : ''}{kmDiff.toLocaleString()} <span className="text-xs font-medium text-primary/50">KM</span>
                   </p>
+                  {agencySettings.km_extra_active && kmDiff > 0 && (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Inclus: {(recalculatedDays * agencySettings.km_par_jour).toLocaleString()} km ({agencySettings.km_par_jour}/j)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -372,6 +397,31 @@ const CloseContractModal = ({ contract, onClose, onSuccess }) => {
                             <p className="text-xl font-headline font-black text-primary-container">{recalculatedTotal.toLocaleString()} DH</p>
                         </div>
                     </div>
+
+                    {/* Km Overage */}
+                    {agencySettings.km_extra_active && kmSupplementaires > 0 && (
+                        <div className="mt-4 p-4 bg-orange-500/20 rounded-xl border border-orange-400/20 relative z-10">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-orange-300 mb-2 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">speed</span>
+                                Supplément Kilométrique
+                            </p>
+                            <div className="space-y-1 text-xs text-orange-200">
+                                <p>Km inclus : {kmInclus.toLocaleString()} km ({agencySettings.km_par_jour} km/j × {recalculatedDays} j)</p>
+                                <p>Km parcourus : {kmDiff.toLocaleString()} km</p>
+                                <p className="font-bold text-orange-100">Dépassement : {kmSupplementaires.toLocaleString()} km × {tarifKmExtra} DH/km</p>
+                            </div>
+                            <p className="text-xl font-black text-orange-300 mt-2">+{montantKmExtra.toLocaleString()} DH</p>
+                        </div>
+                    )}
+
+                    {agencySettings.km_extra_active && kmSupplementaires === 0 && kmDiff > 0 && (
+                        <div className="mt-4 p-3 bg-green-500/10 rounded-xl border border-green-400/20 relative z-10">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-green-300 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                Kilométrage dans le forfait — Aucun supplément
+                            </p>
+                        </div>
+                    )}
 
                     <div className="pt-4 border-t border-white/10 flex justify-between items-end relative z-10">
                         <div>

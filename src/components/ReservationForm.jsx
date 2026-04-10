@@ -1,0 +1,607 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Select from 'react-select';
+import api from '../api';
+import { jwtDecode } from 'jwt-decode';
+
+const ReservationForm = () => {
+    const navigate = useNavigate();
+    const [vehicles, setVehicles] = useState([]);
+    const [clients, setClients] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [step, setStep] = useState(1);
+    const [userRole, setUserRole] = useState('');
+    const [agencySettings, setAgencySettings] = useState({ caution_active: true, caution_montant: 1500 });
+    
+    const [formData, setFormData] = useState({
+        vehicle: '',
+        client: '',
+        deuxieme_chauffeur: '',
+        date_sortie: new Date().toISOString().split('T')[0],
+        date_retour_prevue: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        prix_par_jour: 0,
+        montant_paye: 0,
+        caution: 1500,
+        methode_paiement: 'Espèce',
+        statut: 'RESERVE',
+        notes: '',
+        chauffeur_service: false,
+    });
+
+    const [selectedVehicle, setSelectedVehicle] = useState(null);
+    const [showClientModal, setShowClientModal] = useState(false);
+
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            try {
+                const decoded = jwtDecode(token);
+                setUserRole(decoded.role || '');
+            } catch (err) {
+                console.error("Token decode error:", err);
+            }
+        }
+        
+        const fetchInitialData = async () => {
+            try {
+                const [cRes, settingsRes] = await Promise.all([
+                    api.get('clients/'),
+                    api.get('agency/settings/').catch(() => ({ data: { caution_active: true, caution_montant: 1500 } }))
+                ]);
+                setClients(cRes.data);
+                
+                const settings = settingsRes.data;
+                setAgencySettings(settings);
+                setFormData(prev => ({
+                    ...prev,
+                    caution: settings.caution_active ? parseFloat(settings.caution_montant) : 0
+                }));
+            } catch (error) {
+                console.error("Erreur lors du chargement des données initiales", error);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
+    const handleVehicleSelect = (vehicle) => {
+        setSelectedVehicle(vehicle);
+        setFormData({
+            ...formData,
+            vehicle: vehicle.id,
+            prix_par_jour: vehicle.prix_par_jour || 0,
+        });
+    };
+
+    const diffDays = () => {
+        const start = new Date(formData.date_sortie);
+        const end = new Date(formData.date_retour_prevue);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays || 1;
+    };
+
+    const totalEstimate = () => {
+        const days = diffDays();
+        const base = days * formData.prix_par_jour;
+        const chauffeur = formData.chauffeur_service ? 50 * days : 0;
+        return base + chauffeur;
+    };
+
+    const checkAvailability = async () => {
+        setLoading(true);
+        try {
+            const startStr = `${formData.date_sortie}T09:00:00`;
+            const endStr = `${formData.date_retour_prevue}T09:00:00`;
+            const res = await api.get(`vehicles/available_cars/?start_date=${startStr}&end_date=${endStr}`);
+            setVehicles(res.data);
+            setStep(2);
+        } catch (error) {
+            console.error("Dispo erreur", error);
+            alert(error.response?.data?.detail || "Erreur de disponibilité");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const dataToSubmit = {
+                ...formData,
+                jours: diffDays(),
+                montant_total: totalEstimate(),
+                km_sortie: selectedVehicle?.kilometrage || 0,
+                carburant_sortie: '2/8',
+                date_sortie: `${formData.date_sortie}T09:00:00Z`,
+                date_retour_prevue: `${formData.date_retour_prevue}T09:00:00Z`,
+            };
+            await api.post('contracts/', dataToSubmit);
+            navigate('/reservations');
+        } catch (error) {
+            console.error("Erreur lors de la création", error);
+            if (error.response?.data?.non_field_errors) {
+                alert(error.response.data.non_field_errors[0]);
+            } else if (error.response?.data?.detail) {
+                alert(error.response.data.detail);
+            } else {
+                alert("Erreur lors de la création de la réservation. Vérifiez les champs.");
+            }
+        }
+    };
+
+    const filteredVehicles = vehicles.filter(v => 
+        v.marque_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        v.modele_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.matricule?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+        <div className="min-h-screen bg-surface">
+            {/* Header Section */}
+            <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold tracking-widest text-primary uppercase">Fleet Concierge</span>
+                        <div className="h-px w-8 bg-primary/30"></div>
+                    </div>
+                    <h2 className="text-4xl font-extrabold tracking-tight text-on-surface font-headline">Nouvelle Réservation</h2>
+                    <p className="text-on-surface-variant mt-2 max-w-md">Réservez un véhicule en 3 étapes : Dates, Choix du véhicule, et Informations du Client.</p>
+                </div>
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => navigate('/reservations')}
+                        className="px-6 py-3 rounded-lg border border-outline-variant text-on-surface-variant font-semibold hover:bg-surface-container-low transition-colors"
+                    >
+                        Annuler
+                    </button>
+                    {step === 3 && (
+                        <button 
+                            onClick={handleSubmit}
+                            className="px-6 py-3 rounded-lg bg-primary text-on-primary font-bold shadow-lg shadow-primary/20 flex items-center gap-2 hover:opacity-90 transition-all"
+                        >
+                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'opsz' 20" }}>event_available</span>
+                            Confirmer la Réservation
+                        </button>
+                    )}
+                </div>
+            </header>
+
+            {/* Stepper Indicator */}
+            <div className="flex items-center justify-center mb-10">
+                <div className="flex items-center w-full max-w-2xl">
+                    <div className={`flex flex-col items-center flex-1 ${step >= 1 ? 'text-primary' : 'text-slate-400'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mb-2 ${step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'}`}>1</div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Dates</span>
+                    </div>
+                    <div className={`h-1 flex-1 ${step >= 2 ? 'bg-primary' : 'bg-slate-200'}`}></div>
+                    <div className={`flex flex-col items-center flex-1 ${step >= 2 ? 'text-primary' : 'text-slate-400'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mb-2 ${step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'}`}>2</div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Véhicule</span>
+                    </div>
+                    <div className={`h-1 flex-1 ${step >= 3 ? 'bg-primary' : 'bg-slate-200'}`}></div>
+                    <div className={`flex flex-col items-center flex-1 ${step >= 3 ? 'text-primary' : 'text-slate-400'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold mb-2 ${step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'}`}>3</div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Client</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="grid grid-cols-12 gap-6 pb-20">
+                {/* Center Column for Process */}
+                <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
+                    {/* STEP 1: Dates */}
+                    {step === 1 && (
+                        <div className="bg-white p-8 rounded-xl ring-1 ring-outline-variant/15 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className="material-symbols-outlined text-primary text-3xl">calendar_month</span>
+                                <h3 className="text-2xl font-bold font-headline">Choix de la Période</h3>
+                            </div>
+                            <p className="text-slate-500 mb-8 text-sm">Veuillez sélectionner la date de début et de fin de la réservation. Le système recherchera les véhicules disponibles pendant cette période précise.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                <div>
+                                    <label className="block text-xs uppercase tracking-wider font-bold text-on-surface-variant mb-2">Date de Départ</label>
+                                    <input 
+                                        className="w-full bg-surface-container-low border-none rounded-xl p-4 text-base focus:ring-2 focus:ring-primary/20" 
+                                        type="date"
+                                        value={formData.date_sortie}
+                                        onChange={(e) => setFormData({...formData, date_sortie: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase tracking-wider font-bold text-on-surface-variant mb-2">Retour Prévu</label>
+                                    <input 
+                                        className="w-full bg-surface-container-low border-none rounded-xl p-4 text-base focus:ring-2 focus:ring-primary/20" 
+                                        type="date"
+                                        min={formData.date_sortie}
+                                        value={formData.date_retour_prevue}
+                                        onChange={(e) => setFormData({...formData, date_retour_prevue: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                onClick={checkAvailability}
+                                disabled={loading || !formData.date_sortie || !formData.date_retour_prevue}
+                                className="w-full bg-primary text-white py-4 rounded-xl font-headline font-bold text-lg hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-3 disabled:opacity-70"
+                            >
+                                {loading && <span className="material-symbols-outlined animate-spin hidden">progress_activity</span>}
+                                <span className="material-symbols-outlined">search</span>
+                                {loading ? 'Recherche en cours...' : 'Rechercher les véhicules'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* STEP 2: Vehicle */}
+                    {step === 2 && (
+                        <div className="bg-white p-8 rounded-xl ring-1 ring-outline-variant/15 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-primary text-3xl">directions_car</span>
+                                    <h3 className="text-2xl font-bold font-headline">Véhicules Disponibles</h3>
+                                </div>
+                                <div className="relative">
+                                    <input 
+                                        className="pl-10 pr-4 py-2.5 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 w-64" 
+                                        placeholder="Rechercher (Marque, Modèle, MAT)..." 
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2 pb-2">
+                                {filteredVehicles.map(vehicle => (
+                                    <div 
+                                        key={vehicle.id}
+                                        onClick={() => handleVehicleSelect(vehicle)}
+                                        className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex gap-5 items-center group ${formData.vehicle === vehicle.id ? 'border-primary bg-primary/5 shadow-md shadow-primary/10' : 'border-outline-variant/30 hover:bg-surface-container-low'}`}
+                                    >
+                                        <div className="w-24 h-20 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
+                                            {vehicle.image ? (
+                                                <img src={vehicle.image} alt={vehicle.modele_name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="material-symbols-outlined text-slate-300 text-4xl">directions_car</span>
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className={`font-bold text-lg mb-1 transition-colors leading-tight ${formData.vehicle === vehicle.id ? 'text-primary' : 'text-on-surface'}`}>
+                                                {vehicle.marque_name} {vehicle.modele_name}
+                                            </h4>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="text-[10px] px-2 py-1 rounded-md bg-slate-200 text-slate-700 font-mono uppercase tracking-wider">{vehicle.matricule}</span>
+                                                <span className="text-sm text-primary font-bold">{vehicle.prix_par_jour} DH/j</span>
+                                            </div>
+                                        </div>
+                                        {formData.vehicle === vehicle.id && (
+                                            <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                        )}
+                                    </div>
+                                ))}
+                                {filteredVehicles.length === 0 && (
+                                    <div className="col-span-1 md:col-span-2 py-16 text-center">
+                                        <span className="material-symbols-outlined text-5xl text-slate-300 mb-4">sentiment_dissatisfied</span>
+                                        <h4 className="text-lg font-bold text-slate-600">Aucun véhicule trouvé</h4>
+                                        <p className="text-slate-400">Essayez de modifier vos dates ou filtres de recherche.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-8 flex gap-4 pt-6 border-t border-slate-100">
+                                <button 
+                                    onClick={() => setStep(1)}
+                                    className="px-6 py-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                                >
+                                    Retour aux dates
+                                </button>
+                                <button 
+                                    onClick={() => setStep(3)}
+                                    disabled={!formData.vehicle}
+                                    className="flex-1 bg-primary text-white py-4 rounded-xl font-headline font-bold text-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 disabled:shadow-none"
+                                >
+                                    Continuer avec ce Véhicule
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STEP 3: Client & Preferences */}
+                    {step === 3 && (
+                        <div className="bg-white p-8 rounded-xl ring-1 ring-outline-variant/15 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-primary text-3xl">person</span>
+                                    <h3 className="text-2xl font-bold font-headline">Informations Client</h3>
+                                </div>
+                                <button 
+                                    onClick={() => setShowClientModal(true)}
+                                    className="text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-primary/20 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-sm">add</span>
+                                    NOUVEAU CLIENT
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Sélectionner le Client Principal *</label>
+                                    <Select 
+                                        options={clients.map(c => ({
+                                            value: c.id,
+                                            label: `${c.nom} ${c.prenom} (${c.cin_passport})`,
+                                        }))}
+                                        onChange={(opt) => setFormData({...formData, client: opt ? opt.value : ''})}
+                                        value={formData.client ? {
+                                            value: formData.client,
+                                            label: clients.find(c => c.id == formData.client) ? `${clients.find(c => c.id == formData.client).nom} ${clients.find(c => c.id == formData.client).prenom} (${clients.find(c => c.id == formData.client).cin_passport})` : ''
+                                        } : null}
+                                        placeholder="Rechercher par nom, prénom ou CIN..."
+                                        isSearchable
+                                        isClearable
+                                        classNamePrefix="react-select"
+                                        styles={{
+                                            control: (base) => ({
+                                                ...base, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                                                padding: '6px', borderRadius: '0.75rem', fontSize: '0.875rem'
+                                            })
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Deuxième Conducteur (Optionnel)</label>
+                                    <Select 
+                                        options={clients.filter(c => c.id != formData.client).map(c => ({
+                                            value: c.id,
+                                            label: `${c.nom} ${c.prenom} (${c.cin_passport})`
+                                        }))}
+                                        onChange={(opt) => setFormData({...formData, deuxieme_chauffeur: opt ? opt.value : ''})}
+                                        value={formData.deuxieme_chauffeur ? {
+                                            value: formData.deuxieme_chauffeur,
+                                            label: clients.find(c => c.id == formData.deuxieme_chauffeur) ? `${clients.find(c => c.id == formData.deuxieme_chauffeur).nom} ${clients.find(c => c.id == formData.deuxieme_chauffeur).prenom} (${clients.find(c => c.id == formData.deuxieme_chauffeur).cin_passport})` : ''
+                                        } : null}
+                                        placeholder="Rechercher un deuxième chauffeur..."
+                                        isSearchable
+                                        isClearable
+                                        classNamePrefix="react-select"
+                                        styles={{
+                                            control: (base) => ({
+                                                ...base, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                                                padding: '6px', borderRadius: '0.75rem', fontSize: '0.875rem'
+                                            })
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <hr className="border-slate-100" />
+                            
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className="material-symbols-outlined text-primary text-3xl">payments</span>
+                                <h3 className="text-xl font-bold font-headline">Paiement d'avance & Cautions</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-lg transition-colors border border-slate-100">
+                                        <div>
+                                            <p className="text-sm font-bold text-on-surface">Service Chauffeur</p>
+                                            <p className="text-[10px] text-slate-500 font-medium">+50 DH/jour</p>
+                                        </div>
+                                        <div 
+                                            onClick={() => setFormData({...formData, chauffeur_service: !formData.chauffeur_service})}
+                                            className="relative inline-flex items-center cursor-pointer"
+                                        >
+                                            <div className={`w-11 h-6 transition-colors rounded-full relative ${formData.chauffeur_service ? 'bg-primary' : 'bg-slate-300'}`}>
+                                                <div className={`absolute top-[2px] left-[2px] bg-white w-5 h-5 rounded-full transition-transform ${formData.chauffeur_service ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {agencySettings.caution_active && (
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Caution (Réglement à venir)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">DH</span>
+                                            <input 
+                                                className={`w-full border border-slate-100 rounded-xl pl-12 pr-4 py-3.5 text-sm font-bold ${userRole !== 'OWNER' && userRole !== 'SUPERADMIN' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-primary/20'}`} 
+                                                type="number" 
+                                                value={formData.caution}
+                                                onChange={(e) => setFormData({...formData, caution: e.target.value})}
+                                                disabled={userRole !== 'OWNER' && userRole !== 'SUPERADMIN'}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Montant Versé (Avance)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">DH</span>
+                                        <input 
+                                            className="w-full bg-slate-50 border border-slate-100 text-green-700 bg-green-50/50 rounded-xl pl-12 pr-4 py-3.5 text-sm font-extrabold focus:ring-2 focus:ring-primary/20" 
+                                            type="number" 
+                                            value={formData.montant_paye}
+                                            onChange={(e) => setFormData({...formData, montant_paye: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-span-1 md:col-span-2 lg:col-span-3">
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Mode de Paiement (Avance)</label>
+                                    <select 
+                                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none hover:bg-slate-100 cursor-pointer appearance-none"
+                                        value={formData.methode_paiement}
+                                        onChange={(e) => setFormData({...formData, methode_paiement: e.target.value})}
+                                    >
+                                        <option value="Espèce">Espèce</option>
+                                        <option value="Chèque">Chèque</option>
+                                        <option value="TPE">TPE</option>
+                                        <option value="Virement">Virement</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <hr className="border-slate-100" />
+                            
+                            <div>
+                                <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Notes ou Demandes Spéciales</label>
+                                <textarea 
+                                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/20 resize-none" 
+                                    placeholder="Entrez toute condition supplémentaire à satisfaire au moment de la récupération..." 
+                                    rows="3"
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                                ></textarea>
+                            </div>
+                            
+                            <div className="flex gap-4 pt-6 border-t border-slate-100">
+                                <button 
+                                    onClick={() => setStep(2)}
+                                    className="px-6 py-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                                >
+                                    Retour Véhicules
+                                </button>
+                                <button 
+                                    onClick={handleSubmit}
+                                    disabled={!formData.client || !formData.vehicle}
+                                    className="flex-1 bg-primary text-white py-4 rounded-xl font-headline font-bold text-lg hover:bg-primary/90 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    <span className="material-symbols-outlined">event_available</span>
+                                    Valider et Créer la Réservation
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Column: Reservation State (Sticky) */}
+                <div className="col-span-12 lg:col-span-4 hidden lg:block">
+                    <div className="sticky top-12">
+                        <div className="bg-primary text-on-primary p-8 rounded-2xl shadow-2xl relative overflow-hidden" style={{ minHeight: '300px' }}>
+                            {/* Decorative background */}
+                            <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
+                            
+                            <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-blue-200 mb-8 border-b border-white/10 pb-4">Résumé de Réservation</h3>
+                            
+                            <div className="space-y-6 relative z-10">
+                                {step >= 2 && selectedVehicle && (
+                                    <div className="flex gap-4 animate-in fade-in duration-500">
+                                        <div className="w-16 h-16 bg-white/10 rounded-xl flex items-center justify-center overflow-hidden">
+                                            {selectedVehicle.image ? (
+                                                <img src={selectedVehicle.image} alt="car" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="material-symbols-outlined text-white/50">directions_car</span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-lg font-headline">{selectedVehicle.marque_name} {selectedVehicle.modele_name}</p>
+                                            <p className="text-xs text-blue-200 font-mono">{selectedVehicle.matricule}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div className="py-4 border-y border-white/10">
+                                    <div className="flex items-center gap-4 text-sm font-medium mb-3">
+                                        <span className="material-symbols-outlined text-blue-300">flight_takeoff</span>
+                                        <span className="text-blue-100">{formData.date_sortie}</span>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-sm font-medium">
+                                        <span className="material-symbols-outlined text-blue-300">flight_land</span>
+                                        <span className="text-blue-100">{formData.date_retour_prevue}</span>
+                                    </div>
+                                </div>
+                                
+                                {step >= 2 && selectedVehicle && (
+                                    <>
+                                        <div className="flex justify-between items-baseline pt-2">
+                                            <p className="text-xs uppercase font-bold text-blue-200 tracking-wider">Durée</p>
+                                            <p className="text-lg font-bold">{diffDays()} Jours</p>
+                                        </div>
+                                        <div className="flex justify-between items-baseline py-2 border-b border-white/10">
+                                            <p className="text-xs uppercase font-bold text-blue-200 tracking-wider">Total Est.</p>
+                                            <p className="text-3xl font-extrabold font-headline">{totalEstimate().toLocaleString()} DH</p>
+                                        </div>
+                                    </>
+                                )}
+                                
+                                {step === 3 && (
+                                    <div className="bg-white/10 p-4 rounded-xl mt-4">
+                                        <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Avance à régler (Montant Versé)</p>
+                                        <p className="text-xl font-bold text-green-300">
+                                            {parseFloat(formData.montant_paye).toLocaleString()} DH
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Add Client Modal */}
+            <AddClientModal 
+                isOpen={showClientModal} 
+                onClose={() => setShowClientModal(false)} 
+                onClientCreated={(newClient) => {
+                    setClients(prev => [...prev, newClient]);
+                    setFormData(prev => ({ ...prev, client: newClient.id }));
+                }}
+            />
+        </div>
+    );
+};
+
+const AddClientModal = ({ isOpen, onClose, onClientCreated }) => {
+    const [formData, setFormData] = useState({
+        prenom: '', nom: '', cin_passport: '', email: '',
+        telephone: '', adresse: '', permis_conduite: '',
+        date_delivrance_permis: '', remarques: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const response = await api.post('clients/', formData);
+            onClientCreated(response.data);
+            onClose();
+        } catch (err) {
+            setError(err.response?.data ? JSON.stringify(err.response.data) : "Erreur");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold mb-4">Nouveau Client</h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && <div className="text-red-500 text-sm">{error}</div>}
+                    <div className="grid grid-cols-2 gap-4">
+                        <input name="prenom" value={formData.prenom} onChange={handleChange} required className="border p-2 rounded" placeholder="Prénom" />
+                        <input name="nom" value={formData.nom} onChange={handleChange} required className="border p-2 rounded" placeholder="Nom" />
+                        <input name="cin_passport" value={formData.cin_passport} onChange={handleChange} required className="border p-2 rounded" placeholder="CIN/Passeport" />
+                        <input name="telephone" value={formData.telephone} onChange={handleChange} required className="border p-2 rounded" placeholder="Téléphone" />
+                    </div>
+                    <div className="flex gap-2">
+                        <button type="button" onClick={onClose} className="border p-2 rounded flex-1">Annuler</button>
+                        <button type="submit" disabled={loading} className="bg-primary text-white p-2 rounded flex-1">Créer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+export default ReservationForm;

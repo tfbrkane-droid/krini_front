@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
 import api from '../api';
+import { jwtDecode } from 'jwt-decode';
 import DamageSelector from './DamageSelector';
 import FuelGaugeSelector from './FuelGaugeSelector';
 
@@ -11,6 +12,9 @@ const ContractForm = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [userRole, setUserRole] = useState('');
+    const [agencySettings, setAgencySettings] = useState({ caution_active: true, caution_montant: 1500 });
+
     
     const [formData, setFormData] = useState({
         vehicle: '',
@@ -54,15 +58,34 @@ const ContractForm = () => {
     };
 
     useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            try {
+                const decoded = jwtDecode(token);
+                setUserRole(decoded.role || '');
+            } catch (err) {
+                console.error("Token decode error:", err);
+            }
+        }
+
         const fetchData = async () => {
             try {
-                const [vRes, cRes] = await Promise.all([
+                const [vRes, cRes, settingsRes] = await Promise.all([
                     api.get('vehicles/'),
-                    api.get('clients/')
+                    api.get('clients/'),
+                    api.get('agency/settings/').catch(() => ({ data: { caution_active: true, caution_montant: 1500 } }))
                 ]);
                 // On ne garde que les véhicules disponibles pour un nouveau contrat
                 setVehicles(vRes.data.filter(v => v.statut === 'Available'));
                 setClients(cRes.data);
+                
+                const settings = settingsRes.data;
+                setAgencySettings(settings);
+                setFormData(prev => ({
+                    ...prev,
+                    caution: settings.caution_active ? parseFloat(settings.caution_montant) : 0
+                }));
+                
                 setLoading(false);
             } catch (error) {
                 console.error("Erreur lors du chargement des données", error);
@@ -112,7 +135,13 @@ const ContractForm = () => {
                 navigate('/contracts');
             } catch (error) {
                 console.error("Erreur lors de la création du contrat", error);
-                alert("Erreur lors de la création du contrat. Vérifiez les champs.");
+                if (error.response?.data?.non_field_errors) {
+                    alert(error.response.data.non_field_errors[0]);
+                } else if (error.response?.data?.detail) {
+                    alert(error.response.data.detail);
+                } else {
+                    alert("Erreur lors de la création du contrat. Vérifiez les champs et la disponibilité du véhicule.");
+                }
             }
         };
     
@@ -424,18 +453,21 @@ const ContractForm = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Garantie (Caution)</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-3 text-slate-400 font-bold">DH</span>
-                                        <input 
-                                            className="w-full bg-surface-container-low border-none rounded-lg pl-12 pr-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary/20" 
-                                            type="number" 
-                                            value={formData.caution}
-                                            onChange={(e) => setFormData({...formData, caution: e.target.value})}
-                                        />
+                                {agencySettings.caution_active && (
+                                    <div>
+                                        <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Garantie (Caution)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-3 text-slate-400 font-bold">DH</span>
+                                            <input 
+                                                className={`w-full border-none rounded-lg pl-12 pr-4 py-3 text-sm font-bold ${userRole !== 'OWNER' && userRole !== 'SUPERADMIN' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-surface-container-low focus:ring-2 focus:ring-primary/20'}`} 
+                                                type="number" 
+                                                value={formData.caution}
+                                                onChange={(e) => setFormData({...formData, caution: e.target.value})}
+                                                disabled={userRole !== 'OWNER' && userRole !== 'SUPERADMIN'}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -462,6 +494,28 @@ const ContractForm = () => {
                                             <option value="TPE">TPE</option>
                                             <option value="Virement">Virement</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 pt-6 border-t border-slate-100 hidden">
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Statut Initial du Contrat</label>
+                                    <div className="flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({...formData, statut: 'EN_COURS'})}
+                                            className={`flex-1 p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-1 ${formData.statut === 'EN_COURS' ? 'border-primary bg-primary/5 text-primary' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                                        >
+                                            <span className="material-symbols-outlined">play_circle</span>
+                                            <span className="text-[10px] font-bold uppercase">Actif Immédiat</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({...formData, statut: 'RESERVE'})}
+                                            className={`flex-1 p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-1 ${formData.statut === 'RESERVE' ? 'border-secondary bg-secondary/5 text-secondary' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                                        >
+                                            <span className="material-symbols-outlined">event_note</span>
+                                            <span className="text-[10px] font-bold uppercase">Réservation</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -518,14 +572,16 @@ const ContractForm = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-8 p-4 bg-white/10 rounded-xl backdrop-blur-sm border border-white/5">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-outlined text-green-300 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-green-300">Caution Requise</span>
+                                {agencySettings.caution_active && (
+                                    <div className="mt-8 p-4 bg-white/10 rounded-xl backdrop-blur-sm border border-white/5">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="material-symbols-outlined text-green-300 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-green-300">Caution Requise</span>
+                                        </div>
+                                        <p className="text-lg font-bold">{parseFloat(formData.caution || 0).toLocaleString()} DH</p>
+                                        <p className="text-[10px] text-white/50 leading-relaxed mt-1 italic">Retenue autorisée sur carte. Libérée après inspection conforme de l'actif.</p>
                                     </div>
-                                    <p className="text-lg font-bold">{parseFloat(formData.caution).toLocaleString()} DH</p>
-                                    <p className="text-[10px] text-white/50 leading-relaxed mt-1 italic">Retenue autorisée sur carte. Libérée après inspection conforme de l'actif.</p>
-                                </div>
+                                )}
                             </div>
                         </section>
 

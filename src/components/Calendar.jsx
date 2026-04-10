@@ -13,11 +13,16 @@ const Calendar = () => {
         }
     }, []);
 
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const now = new Date(); // To keep 'now' for the 'today' indicator
+
+    const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const handleNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
     // Timeline Configuration
     const dayWidth = 50; // px
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
     const daysInMonthCount = new Date(currentYear, currentMonth + 1, 0).getDate();
     const daysInMonth = Array.from({ length: daysInMonthCount }, (_, i) => i + 1);
     
@@ -119,55 +124,60 @@ const Calendar = () => {
 
             {/* Calendar Controls */}
             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 bg-surface-container-low px-4 py-1.5 rounded-full">
-                    <button className="material-symbols-outlined text-slate-500 hover:text-primary transition-colors">chevron_left</button>
-                    <span className="font-label text-sm font-semibold px-2 min-w-[120px] text-center">{monthDisplay}</span>
-                    <button className="material-symbols-outlined text-slate-500 hover:text-primary transition-colors">chevron_right</button>
+                <div className="flex items-center gap-2 bg-surface-container-low px-2 py-1.5 rounded-full">
+                    <button onClick={handlePrevMonth} className="material-symbols-outlined p-1 rounded-full text-slate-500 hover:text-primary hover:bg-white transition-colors">chevron_left</button>
+                    <button onClick={() => setCurrentDate(new Date())} className="font-label text-sm font-semibold px-2 min-w-[120px] text-center hover:text-primary transition-colors cursor-pointer" title="Aujourd'hui">
+                        {monthDisplay}
+                    </button>
+                    <button onClick={handleNextMonth} className="material-symbols-outlined p-1 rounded-full text-slate-500 hover:text-primary hover:bg-white transition-colors">chevron_right</button>
                 </div>
                 <div className="flex items-center gap-2 bg-surface-container-low p-1 rounded-lg">
                     <button className="px-4 py-1 text-xs font-bold bg-white text-primary rounded shadow-sm">Mois</button>
-                    <button className="px-4 py-1 text-xs font-semibold text-slate-500 hover:text-primary transition-colors">Semaine</button>
-                    <button className="px-4 py-1 text-xs font-semibold text-slate-500 hover:text-primary transition-colors">Jour</button>
+                    <button className="px-4 py-1 text-xs font-semibold text-slate-500 hover:text-primary transition-colors cursor-not-allowed opacity-50" title="Prochainement">Semaine</button>
+                    <button className="px-4 py-1 text-xs font-semibold text-slate-500 hover:text-primary transition-colors cursor-not-allowed opacity-50" title="Prochainement">Jour</button>
                 </div>
             </div>
 
             {/* Gantt Chart Container */}
-            <div className="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden border border-outline-variant/10 flex flex-col h-[calc(100vh-360px)]">
-                {/* Timeline Header (Dates) - scrolls with body */}
-                <div className="flex border-b border-surface-container">
-                    <div className="w-64 flex-shrink-0 bg-surface-container-low/50 p-4 border-r border-surface-container z-20">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest font-label">Véhicule</span>
-                    </div>
-                    <div ref={scrollRef} className="flex-1 overflow-x-hidden bg-white">
-                        <div className="text-center" style={{ width: `${daysInMonthCount * dayWidth}px`, display: 'grid', gridTemplateColumns: `repeat(${daysInMonthCount}, ${dayWidth}px)` }}>
-                            {daysInMonth.map((day) => {
-                                const dayName = getDayName(day);
-                                const isToday = day === now.getDate();
-                                const isWeekend = dayName === "SAM" || dayName === "DIM";
-                                return (
-                                    <div key={day} className={`p-2 border-r border-slate-50 ${isWeekend ? 'bg-surface-container-low/30' : ''}`}>
-                                        <p className={`text-[10px] font-bold ${isWeekend ? 'text-error' : 'text-slate-400'}`}>{dayName}</p>
-                                        <p className={`text-sm font-bold ${isToday ? 'text-primary ring-2 ring-primary/20 rounded-full w-7 h-7 flex items-center justify-center mx-auto' : isWeekend ? 'text-error' : ''}`}>
-                                            {day.toString().padStart(2, '0')}
-                                        </p>
-                                    </div>
-                                );
-                            })}
+            <div className="bg-white rounded-2xl shadow-sm border border-outline-variant/10 flex flex-col h-[calc(100vh-360px)] relative hide-scrollbar overflow-auto">
+                <div className="min-w-max flex flex-col hide-scrollbar">
+                    {/* Header Row */}
+                    <div className="flex sticky top-0 z-30 bg-white border-b border-surface-container">
+                        <div className="w-64 flex-shrink-0 bg-surface-container-low/50 p-4 border-r border-surface-container z-40 sticky left-0 top-0">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest font-label">Véhicule</span>
+                        </div>
+                        <div className="flex-1 bg-white">
+                            <div className="text-center" style={{ width: `${daysInMonthCount * dayWidth}px`, display: 'grid', gridTemplateColumns: `repeat(${daysInMonthCount}, ${dayWidth}px)` }}>
+                                {daysInMonth.map((day) => {
+                                    const dayName = getDayName(day);
+                                    const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
+                                    const isWeekend = dayName === "SAM" || dayName === "DIM";
+                                    return (
+                                        <div key={day} className={`p-2 border-r border-slate-50 ${isWeekend ? 'bg-surface-container-low/30' : ''}`}>
+                                            <p className={`text-[10px] font-bold ${isWeekend ? 'text-error' : 'text-slate-400'}`}>{dayName}</p>
+                                            <p className={`text-sm font-bold ${isToday ? 'text-white bg-primary rounded-full w-7 h-7 flex items-center justify-center mx-auto shadow-md' : isWeekend ? 'text-error' : 'text-slate-700'}`}>
+                                                {day.toString().padStart(2, '0')}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Timeline Body */}
-                <div className="flex-1 overflow-y-auto relative">
-                    <div className="flex flex-col min-h-full">
+                    {/* Timeline Body Rows */}
+                    <div className="flex flex-col relative">
+                        {/* Background Grid Pattern spanning all rows */}
+                        <div className="absolute top-0 bottom-0 left-[16rem] pointer-events-none z-0 custom-bg-grid" style={{ width: `${daysInMonthCount * dayWidth}px` }} />
+
                         {vehicles.map((vehicle) => {
                             const vehicleContracts = contracts.filter(c => c.vehicle === vehicle.id && c.statut !== 'ANNULE');
                             const isRented = vehicle.statut === 'Rented' || vehicleContracts.some(c => c.statut === 'EN_COURS');
                             const isMaintenance = vehicle.statut === 'Maintenance';
                             return (
-                                <div key={vehicle.id} className="flex group hover:bg-surface-container-low/20 transition-colors border-b border-surface-container last:border-b-0">
+                                <div key={vehicle.id} className="flex group hover:bg-slate-50/80 transition-colors border-b border-surface-container last:border-b-0 min-w-max relative z-10">
                                     {/* Vehicle info column */}
-                                    <div className="w-64 flex-shrink-0 p-4 border-r border-surface-container flex items-center gap-3 bg-white z-10 sticky left-0">
+                                    <div className="w-64 flex-shrink-0 p-4 border-r border-surface-container flex items-center gap-3 bg-white z-20 sticky left-0 group-hover:bg-slate-50/80 transition-colors">
                                         {vehicle.image ? (
                                             <img alt={vehicle.matricule} className="w-12 h-10 object-cover rounded-md" src={vehicle.image} />
                                         ) : (
@@ -176,7 +186,7 @@ const Calendar = () => {
                                             </div>
                                         )}
                                         <div className="overflow-hidden flex-1">
-                                            <p className="text-sm font-bold text-on-surface truncate">{vehicle.marque_name} {vehicle.modele_name}</p>
+                                            <p className="text-sm font-bold text-on-surface truncate cursor-default" title={`${vehicle.marque_name} ${vehicle.modele_name}`}>{vehicle.marque_name} {vehicle.modele_name}</p>
                                             <div className="flex items-center gap-1.5 mt-0.5">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{vehicle.matricule}</p>
                                                 {isRented && (
@@ -191,59 +201,46 @@ const Calendar = () => {
                                                         Maintenance
                                                     </span>
                                                 )}
-                                                {!isRented && !isMaintenance && (
-                                                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                        Disponible
-                                                    </span>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
                                     {/* Timeline row */}
-                                    <div
-                                        className="flex-1 overflow-x-auto hide-scrollbar"
-                                        onScroll={syncScroll}
-                                    >
-                                        <div className="relative h-20 bg-grid-pattern" style={{ width: `${daysInMonthCount * dayWidth}px` }}>
-                                            {/* Today indicator */}
+                                    <div className="flex-1 relative h-20" style={{ width: `${daysInMonthCount * dayWidth}px` }}>
+                                        {/* Today indicator */}
+                                        {currentMonth === now.getMonth() && currentYear === now.getFullYear() && (
                                             <div
-                                                className="absolute top-0 bottom-0 w-[2px] bg-primary/20 pointer-events-none z-0"
+                                                className="absolute top-0 bottom-0 w-[2px] bg-primary/40 pointer-events-none z-10"
                                                 style={{ left: `${(now.getDate() - 1) * dayWidth + (now.getHours() / 24) * dayWidth}px` }}
                                             />
-                                            {/* Contracts */}
-                                            {vehicleContracts.map(contract => {
-                                                const barStyle = calculateBar(contract.date_sortie, contract.date_retour_prevue);
-                                                const isActive = contract.statut === 'EN_COURS';
-                                                return (
-                                                    <div
-                                                        key={contract.id}
-                                                        className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-xl px-2 flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all z-10 ${
-                                                            isActive
-                                                                ? 'bg-primary text-on-primary'
-                                                                : 'bg-tertiary-container text-on-tertiary-fixed-variant'
-                                                        }`}
-                                                        style={barStyle}
-                                                        title={`${contract.client_name} — ${contract.statut}`}
-                                                    >
-                                                        <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                                                            <span className="material-symbols-outlined text-[12px]">person</span>
-                                                        </div>
-                                                        <span className="text-[10px] font-bold truncate">{contract.client_name}</span>
-                                                        {isActive && (
-                                                            <span className="material-symbols-outlined text-[12px] shrink-0 ml-auto">directions_car</span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            {/* Maintenance overlay */}
-                                            {isMaintenance && vehicleContracts.length === 0 && (
-                                                <div className="absolute left-0 right-0 h-10 top-1/2 -translate-y-1/2 bg-error-container/30 border-y border-error/10 flex items-center justify-center gap-2">
-                                                    <span className="material-symbols-outlined text-[16px] text-error">build</span>
-                                                    <span className="text-[10px] font-bold text-error uppercase">Maintenance</span>
+                                        )}
+                                        {/* Contracts */}
+                                        {vehicleContracts.map(contract => {
+                                            const barStyle = calculateBar(contract.date_sortie, contract.date_retour_prevue);
+                                            // Don't render if it's completely out of the month
+                                            if (parseInt(barStyle.width) <= 0) return null;
+                                            const isActive = contract.statut === 'EN_COURS';
+                                            return (
+                                                <div
+                                                    key={contract.id}
+                                                    className={`absolute top-1/2 -translate-y-1/2 h-10 rounded-xl px-2 flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all z-20 overflow-hidden ${
+                                                        isActive
+                                                            ? 'bg-primary text-on-primary shadow-sm border border-primary/20'
+                                                            : 'bg-indigo-100 text-indigo-900 border border-indigo-200 shadow-sm opacity-90 hover:opacity-100'
+                                                    }`}
+                                                    style={barStyle}
+                                                    title={`Contrat #${contract.id} : ${contract.client_name}\nDu ${new Date(contract.date_sortie).toLocaleString('fr-FR')}\nAu ${new Date(contract.date_retour_prevue).toLocaleString('fr-FR')}`}
+                                                >
+                                                    <span className="text-[10px] font-extrabold truncate ml-1">{contract.client_name}</span>
                                                 </div>
-                                            )}
-                                        </div>
+                                            );
+                                        })}
+                                        {/* Maintenance overlay */}
+                                        {isMaintenance && vehicleContracts.length === 0 && (
+                                            <div className="absolute left-0 right-0 h-10 top-1/2 -translate-y-1/2 bg-error-container/40 border-[1px] border-error/20 flex items-center justify-center gap-2 rounded-xl z-10 mx-2">
+                                                <span className="material-symbols-outlined text-[16px] text-error">build</span>
+                                                <span className="text-[10px] font-bold text-error uppercase">Véhicule en Maintenance</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -293,7 +290,7 @@ const Calendar = () => {
             </div>
 
             <style dangerouslySetInnerHTML={{ __html: `
-                .bg-grid-pattern {
+                .custom-bg-grid {
                     background-size: 50px 100%;
                     background-image: linear-gradient(to right, #f2f4f6 1px, transparent 1px);
                 }

@@ -7,6 +7,7 @@ const Layout = ({ children }) => {
     // État pour stocker le nom de l'agence
     const [agencyName, setAgencyName] = useState("Chargement...");
     const [userRole, setUserRole] = useState("");
+    const [userName, setUserName] = useState("Utilisateur");
 
     // Utiliser useEffect pour lire le token au chargement du composant
     useEffect(() => {
@@ -14,9 +15,10 @@ const Layout = ({ children }) => {
         if (token) {
             try {
                 const decoded = jwtDecode(token);
-                // On récupère le nom de l'agence depuis le Token !
+                // On récupère les infos depuis le Token !
                 setAgencyName(decoded.agency_name || "Mon Agence");
                 setUserRole(decoded.role || "");
+                setUserName(decoded.username || "Utilisateur");
             } catch (error) {
                 console.error("Erreur de lecture du token", error);
                 setAgencyName("Mon Agence");
@@ -71,6 +73,13 @@ const Layout = ({ children }) => {
                             >
                                 <span className="material-symbols-outlined">description</span>
                                 <span>Contrats</span>
+                            </Link>
+                            <Link 
+                                to="/reservations" 
+                                className={`flex items-center gap-3 px-4 py-3 rounded-lg font-semibold tracking-tight transition-colors ${location.pathname === '/reservations' ? 'bg-[#00236f] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                            >
+                                <span className="material-symbols-outlined">event_note</span>
+                                <span>Réservations</span>
                             </Link>
                             <Link 
                                 to="/calendar" 
@@ -132,23 +141,42 @@ const Layout = ({ children }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        {userRole !== 'SUPERADMIN' && (
-                            <Link 
-                                to="/contracts/new"
-                                className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg font-headline font-bold text-sm editorial-shadow hover:scale-[0.98] transition-all"
-                            >
-                                <span className="material-symbols-outlined text-lg">add</span>
-                                Nouveau Contrat
-                            </Link>
-                        )}
-                        <div className="h-8 w-[1px] bg-outline-variant/30 mx-2"></div>
-                        <button
-                            onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
-                            className="flex items-center justify-center p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                            title="Se déconnecter"
-                        >
-                            <span className="material-symbols-outlined">logout</span>
+                        {/* Notifications */}
+                        <button className="relative p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-full transition-colors mr-2">
+                            <span className="material-symbols-outlined">notifications</span>
+                            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
                         </button>
+
+                        <div className="h-8 w-[1px] bg-slate-200"></div>
+
+                        {/* User Profile Dropdown */}
+                        <div className="relative group ml-2">
+                            <button className="flex items-center gap-2 p-1 pl-4 pr-1 bg-white border border-slate-200 rounded-full hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20">
+                                <span className="text-sm font-semibold text-slate-700 hidden sm:block">
+                                    {userName}
+                                </span>
+                                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow-inner">
+                                    <span className="material-symbols-outlined text-sm">person</span>
+                                </div>
+                            </button>
+                            
+                            {/* Dropdown Menu */}
+                            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform origin-top-right scale-95 group-hover:scale-100">
+                                <div className="p-3 border-b border-slate-50">
+                                    <p className="text-sm font-bold text-slate-800 px-2 truncate">{userName}</p>
+                                    <p className="text-[10px] text-slate-500 px-2 truncate uppercase font-bold tracking-widest mt-0.5">{userRole || "Admin Agence"}</p>
+                                </div>
+                                <div className="p-2 space-y-1">
+                                    <Link to="/settings" className="w-full text-left flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors">
+                                        <span className="material-symbols-outlined text-[18px]">settings</span> Paramètres
+                                    </Link>
+                                    <div className="h-[1px] bg-slate-100 my-1 !my-2"></div>
+                                    <button onClick={() => { localStorage.clear(); window.location.href = '/login'; }} className="w-full text-left flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors font-semibold">
+                                        <span className="material-symbols-outlined text-[18px]">logout</span> Se déconnecter
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </header>
 
