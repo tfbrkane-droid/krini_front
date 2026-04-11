@@ -21,6 +21,7 @@ const EditClient = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [files, setFiles] = useState({ scan_cin: null, scan_permis: null });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -54,11 +55,32 @@ const EditClient = () => {
         }));
     };
 
+    const handleFileChange = (e) => {
+        const { name, files: selectedFiles } = e.target;
+        if (selectedFiles.length > 0) {
+            setFiles(prev => ({ ...prev, [name]: selectedFiles[0] }));
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
-            await api.put(`clients/${id}/`, formData);
+            const data = new FormData();
+            Object.keys(formData).forEach(key => {
+                // Ignore file URL fields when sending back, only send new files if selected
+                if (key !== 'scan_cin' && key !== 'scan_permis') {
+                    if (formData[key] !== null && formData[key] !== undefined) {
+                        data.append(key, typeof formData[key] === 'boolean' ? (formData[key] ? 'true' : 'false') : formData[key]);
+                    }
+                }
+            });
+            if (files.scan_cin) data.append('scan_cin', files.scan_cin);
+            if (files.scan_permis) data.append('scan_permis', files.scan_permis);
+
+            await api.patch(`clients/${id}/`, data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             navigate('/clients');
         } catch (err) {
             console.error("Error updating client:", err);
@@ -216,6 +238,21 @@ const EditClient = () => {
                                             type="text" 
                                         />
                                     </div>
+                                    <div className="flex flex-col border-t border-slate-200 pt-3">
+                                        <label className="text-[10px] uppercase tracking-wider font-bold text-slate-500 font-label mb-2">Scan du permis</label>
+                                        {formData.scan_permis && !files.scan_permis && (
+                                            <a href={formData.scan_permis} target="_blank" rel="noreferrer" className="text-xs text-primary font-bold hover:underline mb-2 inline-flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                                Voir le scan actuel
+                                            </a>
+                                        )}
+                                        <label className="border border-dashed border-primary/30 bg-primary/5 rounded-md p-3 text-center cursor-pointer hover:bg-primary/10 transition-colors">
+                                            <span className="text-xs font-semibold text-primary">
+                                                {files.scan_permis ? files.scan_permis.name : "Télécharger un nouveau document"}
+                                            </span>
+                                            <input type="file" name="scan_permis" className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                             {/* Passport / CIN */}
@@ -242,6 +279,21 @@ const EditClient = () => {
                                             className="bg-white border border-slate-200 rounded-md px-3 py-2 text-xs focus:ring-0 focus:border-primary transition-all" 
                                             type="text" 
                                         />
+                                    </div>
+                                    <div className="flex flex-col border-t border-slate-200 pt-3">
+                                        <label className="text-[10px] uppercase tracking-wider font-bold text-slate-500 font-label mb-2">Scan d'identité</label>
+                                        {formData.scan_cin && !files.scan_cin && (
+                                            <a href={formData.scan_cin} target="_blank" rel="noreferrer" className="text-xs text-primary font-bold hover:underline mb-2 inline-flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                                Voir le scan actuel
+                                            </a>
+                                        )}
+                                        <label className="border border-dashed border-primary/30 bg-primary/5 rounded-md p-3 text-center cursor-pointer hover:bg-primary/10 transition-colors">
+                                            <span className="text-xs font-semibold text-primary">
+                                                {files.scan_cin ? files.scan_cin.name : "Télécharger un nouveau document"}
+                                            </span>
+                                            <input type="file" name="scan_cin" className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
+                                        </label>
                                     </div>
                                 </div>
                             </div>

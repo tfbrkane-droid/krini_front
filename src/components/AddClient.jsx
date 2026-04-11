@@ -15,6 +15,10 @@ const AddClient = () => {
         date_delivrance_permis: '',
         remarques: ''
     });
+    const [files, setFiles] = useState({
+        scan_cin: null,
+        scan_permis: null
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -23,12 +27,30 @@ const AddClient = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleFileChange = (e) => {
+        const { name, files: selectedFiles } = e.target;
+        if (selectedFiles.length > 0) {
+            setFiles(prev => ({ ...prev, [name]: selectedFiles[0] }));
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
         try {
-            await api.post('clients/', formData);
+            const data = new FormData();
+            Object.keys(formData).forEach(key => {
+                if (formData[key] !== null && formData[key] !== undefined && formData[key] !== '') {
+                    data.append(key, formData[key]);
+                }
+            });
+            if (files.scan_cin) data.append('scan_cin', files.scan_cin);
+            if (files.scan_permis) data.append('scan_permis', files.scan_permis);
+
+            await api.post('clients/', data, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
             navigate('/clients');
         } catch (err) {
             console.error("Error creating client:", err);
@@ -193,14 +215,26 @@ const AddClient = () => {
                                         <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">calendar_today</span>
                                     </div>
                                 </div>
-                                <div className="col-span-2 mt-4">
-                                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
-                                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                            <span className="material-symbols-outlined text-slate-500">cloud_upload</span>
+                                <div className="col-span-2 mt-4 grid grid-cols-2 gap-6">
+                                    {/* Scan Permis */}
+                                    <label className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
+                                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                            <span className="material-symbols-outlined text-primary">drive_eta</span>
                                         </div>
-                                        <p className="text-sm font-semibold text-on-surface">Cliquez pour télécharger le scan du document</p>
-                                        <p className="text-xs text-slate-400 mt-1">Supports PDF, JPG, ou PNG (Max 5Mo)</p>
-                                    </div>
+                                        <p className="text-sm font-semibold text-slate-800">Scan du Permis</p>
+                                        <p className="text-xs text-slate-400 mt-1">{files.scan_permis ? files.scan_permis.name : "Cliquez pour télécharger"}</p>
+                                        <input type="file" name="scan_permis" className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
+                                    </label>
+                                    
+                                    {/* Scan CIN/Passport */}
+                                    <label className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer group">
+                                        <div className="w-12 h-12 rounded-full bg-tertiary-container flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                            <span className="material-symbols-outlined text-tertiary">public</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-800">Scan CIN / Passeport</p>
+                                        <p className="text-xs text-slate-400 mt-1">{files.scan_cin ? files.scan_cin.name : "Cliquez pour télécharger"}</p>
+                                        <input type="file" name="scan_cin" className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
+                                    </label>
                                 </div>
                             </div>
                         </section>
