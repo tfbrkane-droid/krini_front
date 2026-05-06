@@ -172,7 +172,7 @@ const Settings = () => {
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">KM</span>
                             <input
-                                type="number" min="1" step="50"
+                                type="number" min="0" step="10"
                                 value={settings.km_par_jour}
                                 onChange={(e) => setSettings({ ...settings, km_par_jour: e.target.value })}
                                 disabled={!isOwner || saving || !settings.km_extra_active}
