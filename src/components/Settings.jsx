@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { jwtDecode } from 'jwt-decode';
 
 const ToggleSwitch = ({ checked, onChange, disabled }) => (
@@ -43,10 +43,7 @@ const Settings = () => {
 
     const fetchSettings = async () => {
         try {
-            const token = localStorage.getItem('access_token');
-            const res = await axios.get('http://localhost:8000/api/agency/settings/', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('agency/settings/');
             setSettings({
                 caution_active: res.data.caution_active,
                 caution_montant: parseFloat(res.data.caution_montant),
@@ -68,10 +65,7 @@ const Settings = () => {
         setMessage({ text: '', type: '' });
 
         try {
-            const token = localStorage.getItem('access_token');
-            await axios.put('http://localhost:8000/api/agency/settings/', settings, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.put('agency/settings/', settings);
             setMessage({ text: 'Paramètres sauvegardés avec succès.', type: 'success' });
             setTimeout(() => setMessage({ text: '', type: '' }), 3000);
         } catch (error) {
