@@ -6,6 +6,11 @@ import { jwtDecode } from 'jwt-decode';
 import DamageSelector from './DamageSelector';
 import FuelGaugeSelector from './FuelGaugeSelector';
 
+const getLocalDatetime = (date) => {
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzoffset).toISOString().slice(0, 16);
+};
+
 const ContractForm = () => {
     const navigate = useNavigate();
     const [vehicles, setVehicles] = useState([]);
@@ -20,8 +25,8 @@ const ContractForm = () => {
         vehicle: '',
         client: '',
         deuxieme_chauffeur: '',
-        date_sortie: new Date().toISOString().split('T')[0],
-        date_retour_prevue: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        date_sortie: getLocalDatetime(new Date()),
+        date_retour_prevue: getLocalDatetime(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)),
         prix_par_jour: 0,
         montant_paye: 0,
         caution: 1500,
@@ -127,9 +132,9 @@ const ContractForm = () => {
                     ...formData,
                     jours: diffDays(),
                     montant_total: totalEstimate(),
-                    // On s'assure que les dates incluent l'heure si nécessaire (le backend utilise DateTimeField)
-                    date_sortie: `${formData.date_sortie}T09:00:00Z`,
-                    date_retour_prevue: `${formData.date_retour_prevue}T09:00:00Z`,
+                    // Les dates sont maintenant des datetime-local (YYYY-MM-DDTHH:mm)
+                    date_sortie: `${formData.date_sortie}:00`,
+                    date_retour_prevue: `${formData.date_retour_prevue}:00`,
                 };
                 await api.post('contracts/', dataToSubmit);
                 navigate('/contracts');
@@ -413,19 +418,19 @@ const ContractForm = () => {
                             </div>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Date de Départ</label>
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Date et Heure de Départ</label>
                                     <input 
                                         className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/20" 
-                                        type="date"
+                                        type="datetime-local"
                                         value={formData.date_sortie}
                                         onChange={(e) => setFormData({...formData, date_sortie: e.target.value})}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Retour Prévu</label>
+                                    <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Date et Heure de Retour Prévu</label>
                                     <input 
                                         className="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/20" 
-                                        type="date"
+                                        type="datetime-local"
                                         value={formData.date_retour_prevue}
                                         onChange={(e) => setFormData({...formData, date_retour_prevue: e.target.value})}
                                     />
