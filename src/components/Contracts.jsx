@@ -8,6 +8,7 @@ const Contracts = () => {
     const [contracts, setContracts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [closeContract, setCloseContract] = useState(null);
+    const [printContractId, setPrintContractId] = useState(null);
     const [successMsg, setSuccessMsg] = useState('');
     const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL', 'EN_COURS', 'RESERVE', 'TERMINE'
 
@@ -29,9 +30,10 @@ const Contracts = () => {
         fetchContracts();
     };
 
-    const handleDownloadPDF = async (id) => {
+    const handleDownloadPDF = async (id, withCachet) => {
         try {
-            const response = await api.get(`contracts/${id}/print_contract/`, {
+            setPrintContractId(null);
+            const response = await api.get(`contracts/${id}/print_contract/?with_cachet=${withCachet}`, {
                 responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -86,6 +88,42 @@ const Contracts = () => {
                     onClose={() => setCloseContract(null)}
                     onSuccess={handleCloseSuccess}
                 />
+            )}
+
+            {/* Print Contract Modal */}
+            {printContractId && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-6 text-center">
+                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
+                            <span className="material-symbols-outlined text-3xl">print</span>
+                        </div>
+                        <h3 className="text-xl font-bold font-headline text-slate-900 mb-2">Imprimer le Contrat</h3>
+                        <p className="text-sm text-slate-500 mb-6">Souhaitez-vous inclure le cachet de l'agence sur ce contrat ?</p>
+                        
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => handleDownloadPDF(printContractId, true)}
+                                className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-sm">verified</span>
+                                Oui, avec Cachet
+                            </button>
+                            <button 
+                                onClick={() => handleDownloadPDF(printContractId, false)}
+                                className="w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-sm">description</span>
+                                Non, sans Cachet
+                            </button>
+                            <button 
+                                onClick={() => setPrintContractId(null)}
+                                className="w-full py-2 mt-2 text-slate-400 font-semibold text-sm hover:text-slate-600 transition-colors"
+                            >
+                                Annuler
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Success Toast */}
@@ -249,7 +287,7 @@ const Contracts = () => {
                                                 <span className="material-symbols-outlined text-lg">edit</span>
                                             </button>
                                             <button 
-                                                onClick={() => handleDownloadPDF(contract.id)}
+                                                onClick={() => setPrintContractId(contract.id)}
                                                 className="p-2 text-slate-400 hover:text-primary transition-colors" 
                                                 title="Générer PDF"
                                             >

@@ -22,7 +22,9 @@ const Settings = () => {
         km_extra_active: true,
         km_par_jour: 250,
         km_tarif_extra_defaut: 1.5,
+        cachet_signature: null,
     });
+    const [cachetFile, setCachetFile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [userRole, setUserRole] = useState('');
@@ -50,6 +52,7 @@ const Settings = () => {
                 km_extra_active: res.data.km_extra_active,
                 km_par_jour: parseInt(res.data.km_par_jour),
                 km_tarif_extra_defaut: parseFloat(res.data.km_tarif_extra_defaut),
+                cachet_signature: res.data.cachet_signature,
             });
         } catch (error) {
             console.error("Error fetching settings:", error);
@@ -65,7 +68,26 @@ const Settings = () => {
         setMessage({ text: '', type: '' });
 
         try {
-            await api.put('agency/settings/', settings);
+            const formData = new FormData();
+            Object.keys(settings).forEach(key => {
+                if (key !== 'cachet_signature') {
+                    formData.append(key, settings[key]);
+                }
+            });
+            if (cachetFile) {
+                formData.append('cachet_signature', cachetFile);
+            }
+
+            const res = await api.put('agency/settings/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            
+            // Mettre à jour l'image si elle a été changée par le backend
+            if (res.data.cachet_signature) {
+                setSettings(prev => ({ ...prev, cachet_signature: res.data.cachet_signature }));
+            }
+            setCachetFile(null); // Reset the file input state
+            
             setMessage({ text: 'Paramètres sauvegardés avec succès.', type: 'success' });
             setTimeout(() => setMessage({ text: '', type: '' }), 3000);
         } catch (error) {
@@ -215,6 +237,57 @@ const Settings = () => {
                         </div>
                     </div>
                 )}
+            </SectionCard>
+
+            {/* Section Branding / Cachet */}
+            <SectionCard icon="verified" title="Branding et Documents" description="Configurez les éléments visuels de vos documents officiels.">
+                <div className="grid grid-cols-1 gap-6">
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Cachet & Signature de l'Agence</label>
+                        <p className="text-xs text-slate-500 mb-4">Cette image (idéalement au format PNG avec fond transparent) sera utilisée sur les contrats de location générés en PDF.</p>
+                        
+                        <div className="flex items-center gap-6">
+                            {/* Preview box */}
+                            <div className="w-48 h-32 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex items-center justify-center overflow-hidden">
+                                {cachetFile ? (
+                                    <img src={URL.createObjectURL(cachetFile)} alt="Cachet preview" className="max-w-full max-h-full object-contain p-2" />
+                                ) : settings.cachet_signature ? (
+                                    <img src={settings.cachet_signature} alt="Cachet actuel" className="max-w-full max-h-full object-contain p-2" />
+                                ) : (
+                                    <div className="text-center text-slate-400">
+                                        <span className="material-symbols-outlined text-3xl">image</span>
+                                        <p className="text-[10px] mt-1 font-semibold uppercase">Aucun cachet</p>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Upload button */}
+                            <div className="flex-1">
+                                <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border font-semibold text-sm cursor-pointer transition-all w-max ${!isOwner || saving ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'bg-white hover:bg-slate-50 border-slate-200 text-primary hover:border-primary/30'}`}>
+                                    <span className="material-symbols-outlined text-[20px]">upload_file</span>
+                                    {cachetFile ? 'Changer l\'image' : 'Importer un cachet (PNG/JPG)'}
+                                    <input 
+                                        type="file" 
+                                        accept=".png,.jpg,.jpeg" 
+                                        className="hidden"
+                                        disabled={!isOwner || saving}
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setCachetFile(e.target.files[0]);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                                {cachetFile && (
+                                    <p className="text-xs text-primary font-bold mt-2 ml-1 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                        Fichier prêt à être sauvegardé
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </SectionCard>
 
             {/* Save button */}
