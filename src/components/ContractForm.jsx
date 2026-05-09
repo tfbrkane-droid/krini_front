@@ -19,6 +19,7 @@ const ContractForm = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [userRole, setUserRole] = useState('');
     const [agencySettings, setAgencySettings] = useState({ caution_active: true, caution_montant: 1500 });
+    const [isCautionActive, setIsCautionActive] = useState(true);
 
     
     const [formData, setFormData] = useState({
@@ -86,6 +87,7 @@ const ContractForm = () => {
                 
                 const settings = settingsRes.data;
                 setAgencySettings(settings);
+                setIsCautionActive(settings.caution_active);
                 setFormData(prev => ({
                     ...prev,
                     caution: settings.caution_active ? parseFloat(settings.caution_montant) : 0
@@ -458,21 +460,33 @@ const ContractForm = () => {
                                         </div>
                                     </div>
                                 </div>
-                                {agencySettings.caution_active && (
-                                    <div>
-                                        <label className="block text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2 ml-1">Garantie (Caution)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-3 text-slate-400 font-bold">DH</span>
-                                            <input 
-                                                className={`w-full border-none rounded-lg pl-12 pr-4 py-3 text-sm font-bold ${userRole !== 'OWNER' && userRole !== 'SUPERADMIN' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-surface-container-low focus:ring-2 focus:ring-primary/20'}`} 
-                                                type="number" 
-                                                value={formData.caution}
-                                                onChange={(e) => setFormData({...formData, caution: e.target.value})}
-                                                disabled={userRole !== 'OWNER' && userRole !== 'SUPERADMIN'}
-                                            />
+                                <div>
+                                    <div className="flex items-center justify-between mb-2 ml-1">
+                                        <label className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Garantie (Caution)</label>
+                                        <div 
+                                            onClick={() => {
+                                                const newState = !isCautionActive;
+                                                setIsCautionActive(newState);
+                                                setFormData({...formData, caution: newState ? agencySettings.caution_montant : 0});
+                                            }}
+                                            className="relative inline-flex items-center cursor-pointer"
+                                        >
+                                            <div className={`w-9 h-5 transition-colors rounded-full relative ${isCautionActive ? 'bg-primary' : 'bg-slate-200'}`}>
+                                                <div className={`absolute top-[2px] left-[2px] bg-white w-4 h-4 rounded-full transition-transform ${isCautionActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-3 text-slate-400 font-bold">DH</span>
+                                        <input 
+                                            className={`w-full border-none rounded-lg pl-12 pr-4 py-3 text-sm font-bold ${!isCautionActive ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-surface-container-low focus:ring-2 focus:ring-primary/20'}`} 
+                                            type="number" 
+                                            value={formData.caution}
+                                            onChange={(e) => setFormData({...formData, caution: e.target.value})}
+                                            disabled={!isCautionActive}
+                                        />
+                                    </div>
+                                </div>
                                 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -577,14 +591,14 @@ const ContractForm = () => {
                                     </div>
                                 </div>
 
-                                {agencySettings.caution_active && (
+                                {isCautionActive && (
                                     <div className="mt-8 p-4 bg-white/10 rounded-xl backdrop-blur-sm border border-white/5">
                                         <div className="flex items-center gap-2 mb-2">
                                             <span className="material-symbols-outlined text-green-300 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
                                             <span className="text-[10px] font-bold uppercase tracking-wider text-green-300">Caution Requise</span>
                                         </div>
                                         <p className="text-lg font-bold">{parseFloat(formData.caution || 0).toLocaleString()} DH</p>
-                                        <p className="text-[10px] text-white/50 leading-relaxed mt-1 italic">Retenue autorisée sur carte. Libérée après inspection conforme de l'actif.</p>
+                                        <p className="text-[10px] text-white/50 leading-relaxed mt-1 italic">Retenue autorisée sur carte ou par dépôt. Libérée après inspection conforme de l'actif.</p>
                                     </div>
                                 )}
                             </div>
